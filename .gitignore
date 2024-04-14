@@ -1,7 +1,7 @@
 .vscode
 **/__pycache__/**
-data/lsoie_sci_train.json
-data/lsoie_wiki_train.json
+data/oie/lsoie_sci_train.json
+data/oie/lsoie_wiki_train.json
 dump
 *.pyc
 **/._*
