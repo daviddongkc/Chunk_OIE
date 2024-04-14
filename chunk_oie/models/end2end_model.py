@@ -1,14 +1,10 @@
 from typing import Dict, List, Optional, Any, Union
-
 from overrides import overrides
 import torch
-from torch.nn.modules import Linear, Dropout, Embedding, LogSigmoid, LogSoftmax
+from torch.nn.modules import Linear, Dropout, Embedding
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
-import torch.nn as nn
-import os
 from pytorch_pretrained_bert.modeling import BertModel
-
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.nn import InitializerApplicator, RegularizerApplicator
@@ -23,7 +19,6 @@ class OIE_Model(Model):
     def __init__(self,
                  vocab: Vocabulary,
                  bert_model: Union[str, BertModel],
-                 phrase_attention: Seq2SeqEncoder,
                  embedding_dropout: float = 0.0,
                  dependency_label_dim: int = 400,
                  initializer: InitializerApplicator = InitializerApplicator(),
@@ -47,10 +42,8 @@ class OIE_Model(Model):
         lines = open(dep_label_file, "r").readlines()
         self.dep_label = {line.strip(): i + 1 for i, line in enumerate(lines)}
         self.num_dep_labels = len(self.dep_label)+1
-        # self.num_dep_labels = 47
         self.dep_gcn = DepGCN(self.num_dep_labels, dependency_label_dim, self.bert_model.config.hidden_size,
                               self.bert_model.config.hidden_size)
-
 
         # this is provide pos tags to the model
         self.num_pos_labels = self.vocab.get_vocab_size("pos_labels")
@@ -63,14 +56,7 @@ class OIE_Model(Model):
         # this is to project the output of bert to the number of classes
         self.type_projection_layer = Linear(self.bert_model.config.hidden_size, self.num_type_classes)
         self.bound_projection_layer = Linear(self.bert_model.config.hidden_size, self.num_bound_classes)
-
-
         self.type_embedding = Embedding(self.num_type_labels, type_label_dim, padding_idx=0)
-        # self.dep_embedding = Embedding(self.num_dep_labels, dependency_label_dim, padding_idx=0)
-        # self.dep_attn = Linear(dependency_label_dim + self.bert_model.config.hidden_size, self.bert_model.config.hidden_size)
-
-        # self.phrase_attention = phrase_attention
-
         self.embedding_dropout = Dropout(p=embedding_dropout)
         self._label_smoothing = label_smoothing
         self._token_based_metric = tuple_metric
@@ -181,7 +167,6 @@ class OIE_Model(Model):
         reshaped_log_probs = logits.view(-1, self.num_classes)
         class_probabilities = F.softmax(reshaped_log_probs, dim=-1).view([batch_size, sequence_length, self.num_classes])
 
-
         return logits, class_probabilities
 
 
@@ -236,7 +221,6 @@ class OIE_Model(Model):
         adj_tensor, node_tensor = convert_to_adj_tensor(dep_edges_batch, dep_nodes_batch, cuda_device=device)
 
         return adj_tensor, node_tensor
-
 
     def forward(self,
                 tokens: Dict[str, torch.Tensor],
@@ -338,10 +322,8 @@ class OIE_Model(Model):
 
             wordpiece_bound_tags.append(bound_tags_new)
             word_bound_tags.append([bound_tags_new[i] for i in offsets])
-
             type_ints, _ = viterbi_decode(type_predictions[:length], transition_matrix,
                                           allowed_start_transitions=start_transitions)
-            # type_ints = torch.argmax(type_predictions[:length], dim=1).tolist()
             type_tags = [self.vocab.get_token_from_index(x, namespace="chunk_labels") for x in type_ints]
             wordpiece_type_ints.append(type_ints)
             wordpiece_type_tags.append(type_tags)
@@ -355,8 +337,6 @@ class OIE_Model(Model):
             type_probs = [float(type_predictions[i][j]) for i, j in enumerate(type_ints)]
             word_type_probs.append([type_probs[i] for i in offsets])
             wordpiece_type_probs.append(type_probs)
-
-            # tag_ids.append([tags[i] for i in offsets])
 
         output_dict['wordpiece_bound_tags'] = wordpiece_bound_tags
         output_dict['bound_tags'] = word_bound_tags
@@ -448,38 +428,3 @@ class OIE_Model(Model):
                 start_transitions[i] = float("-inf")
 
         return start_transitions
-
-
-# class DepGCN(nn.Module):
-#     """
-#     Label-aware Dependency Convolutional Neural Network Layer
-#     """
-#     def __init__(self, dep_num, dep_dim, in_features, out_features):
-#         super(DepGCN, self).__init__()
-#         self.dep_dim = dep_dim
-#         self.in_features = in_features
-#         self.out_features = out_features
-#         self.dep_embedding = nn.Embedding(dep_num, dep_dim, padding_idx=0)
-#         self.dep_attn = nn.Linear(dep_dim + in_features, out_features)
-#         self.dep_fc = nn.Linear(dep_dim, out_features)
-#         self.relu = nn.ReLU()
-#
-#     def forward(self, text, dep_mat, dep_labels):
-#         dep_label_embed = self.dep_embedding(dep_labels)
-#         batch_size, seq_len, feat_dim = text.shape
-#         val_dep = dep_label_embed.unsqueeze(dim=2)
-#         val_dep = val_dep.repeat(1, 1, seq_len, 1)
-#         val_us = text.unsqueeze(dim=2)
-#         val_us = val_us.repeat(1, 1, seq_len, 1)
-#         val_sum = torch.cat([val_us, val_dep], dim=-1)
-#         r = self.dep_attn(val_sum)
-#         p = torch.sum(r, dim=-1)
-#         mask = (dep_mat == 0).float() * (-1e30)
-#         p = p + mask
-#         p = torch.softmax(p, dim=2)
-#         p_us = p.unsqueeze(3).repeat(1, 1, 1, feat_dim)
-#         output = val_us + self.dep_fc(val_dep)
-#         output = torch.mul(p_us, output)
-#         output_sum = torch.sum(output, dim=2)
-#         output_sum = self.relu(output_sum)
-#         return output_sum

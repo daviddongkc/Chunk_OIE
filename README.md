@@ -14,29 +14,32 @@ pip install -r requirements.txt
 ### Preparing traing dataset
 The training dataset is compressed in the path
 ```data\oie```.
-Please unzip it first before training.
+Please unzip it in the same path before training.
 
 ### Running the code
 
 1. For end-to-end Chunk-OIE
 ```
-python allennlp_e2e_run.py --config config/wiki_multi_view.json  --epoch 3 --batch 16  --model trained_model/e2e_chunk_oie
+python allennlp_e2e_run.py --config config/wiki_multi_view.json  --epoch 1 --batch 16  --model trained_model/e2e_chunk_oie
 ```
 
 2. For 2-stage Chunk-OIE
 ```
-python allennlp_run.py --config config/oie_wiki_oia.json --epoch 5 --batch 32 --model trained_model/2stage_chunk_oie
+python allennlp_run.py --config config/oie_wiki_oia.json --epoch 1 --batch 32 --model trained_model/2stage_chunk_oie
 ```
 
-2. For training a chunker and using it to infer chunks (optional)
+3. For training a chunker and using it to infer chunks (optional)
 ```
-python allennlp_chunk_run.py --config config/chunk_oia.json  --epoch 3 --batch 16  --model trained_model/2stage_chunker
+python allennlp_chunk_run.py --config config/chunk_oia.json  --epoch 1 --batch 16  --model trained_model/2stage_chunker
 python allennlp_chunk_predict.py
 ```
 
 Arguments:
 - config: configuration file containing all the parameters for the model
 - model:  path of the directory where the model will be saved
+- epoch:  number of epoch for training
+- batch:  number of instances per batch
+- 
 
 
 

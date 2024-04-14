@@ -2,10 +2,9 @@ from typing import Dict, List, Optional, Any, Union
 import logging
 from overrides import overrides
 import torch
-from torch.nn.modules import Linear, Dropout, Embedding, LogSigmoid, LogSoftmax
+from torch.nn.modules import Linear, Dropout, Embedding
 import torch.nn.functional as F
 from pytorch_pretrained_bert.modeling import BertModel
-
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.nn import InitializerApplicator, RegularizerApplicator
@@ -75,8 +74,6 @@ class OIE_Model(Model):
 
         embedded_text_input = self.embedding_dropout(bert_embeddings)
         batch_size, sequence_length, _ = embedded_text_input.size()
-
-        phrase_mask = get_text_field_mask(phrase_types)
         embed_type = self.type_embedding(phrase_types['types'])
         _, phrase_seq_length, embed_dim = embed_type.size()
 
@@ -96,17 +93,8 @@ class OIE_Model(Model):
                     embed_phrase[i,j,:] = torch.mean(embed_bert[x:y+1,:], dim=0)
 
         embed_phrase = embed_phrase + embed_type
-
-        # embedded_dep = self.phrase_attention(embed_phrase, phrase_mask)
-
-        # dep_label_embed = self.dep_embedding(dep_nodes['dep_tags'])
-        # embedded_dep = torch.cat([embed_phrase, dep_label_embed], dim=-1)
-        # embedded_dep = self.dep_attn(embedded_dep)
-
         embedded_dep = self.dep_gcn(embed_phrase, dep_edges, dep_nodes['dep_tags'])
-
         embed_phrase_final = (embed_phrase+embedded_dep)/2
-
         phrase_logits = self.tag_projection_layer(embed_phrase_final)
 
         if cuda_device < 0:
@@ -126,7 +114,6 @@ class OIE_Model(Model):
 
         reshaped_log_probs = logits.view(-1, self.num_classes)
         class_probabilities = F.softmax(reshaped_log_probs, dim=-1).view([batch_size, sequence_length, self.num_classes])
-
 
         output_dict = {"logits": logits, "class_probabilities": class_probabilities}
         if tags is not None:
