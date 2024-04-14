@@ -1,0 +1,2 @@
+python allennlp_chunk_run.py --cuda 0 --config config/chunk_conll.json --epoch 5 --batch 32 --model trained_model/chunk_conll_model
+python allennlp_chunk_run.py --cuda 0 --config config/chunk_oia.json --epoch 5 --batch 32 --model trained_model/chunk_oia_model
